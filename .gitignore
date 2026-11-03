@@ -1,0 +1,10 @@
+/build/
+/node_modules/
+/.tools/
+/.env
+/.env.*
+!/.env.example
+/connection.conf
+*.log
+*.dll
+*.exe

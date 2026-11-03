@@ -1,0 +1,7 @@
+{
+  "name": "gw2-agent-chat",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {"agent": "opencode serve --hostname 127.0.0.1 --port 4096"},
+  "devDependencies": {"opencode-ai": "1.19.5"}
+}
