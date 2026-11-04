@@ -13,10 +13,6 @@ jobs:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-go@v5
-        with:
-          go-version-file: go.mod
-          cache: true
       - uses: actions/setup-node@v4
         with:
           node-version: 22
@@ -25,11 +21,23 @@ jobs:
         run: npm ci
       - name: Verify OpenCode version
         run: .\node_modules\opencode-ai\bin\opencode.exe --version
-      - name: Run Go tests including Windows ACL checks
-        run: go test ./...
+      - name: Verify protected OpenCode connection file
+        shell: pwsh
+        run: |
+          $result = .\start-agent.ps1 -PrepareOnly
+          $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.ToString()
+          foreach ($path in @($result.ConnectionPath, (Split-Path $result.ConnectionPath))) {
+            $acl = Get-Acl -LiteralPath $path
+            $rules = @($acl.GetAccessRules($true, $true, [Security.Principal.SecurityIdentifier]))
+            if (-not $acl.AreAccessRulesProtected -or $rules.Count -ne 1 -or $rules[0].IdentityReference.Value -ne $sid -or $rules[0].AccessControlType -ne 'Allow' -or (($rules[0].FileSystemRights -band [Security.AccessControl.FileSystemRights]::FullControl) -ne [Security.AccessControl.FileSystemRights]::FullControl)) { throw 'Connection ACL is not current-user-only' }
+          }
+          $connection = Get-Content -Raw -LiteralPath $result.ConnectionPath | ConvertFrom-Json
+          if ($connection.url -ne 'http://127.0.0.1:4096' -or $connection.username -ne 'opencode' -or $connection.password -notmatch '^[A-Za-z0-9_-]{43}$') { throw 'Connection file format is invalid' }
+          Remove-Item -LiteralPath $result.ConnectionPath
+          Remove-Item -LiteralPath (Split-Path $result.ConnectionPath)
       - name: Configure x64 MSVC build
         run: cmake -S . -B build -A x64 -DBUILD_TESTING=ON
-      - name: Build add-on and parser test
+      - name: Build add-on and OpenCode tests
         run: cmake --build build --config Release --parallel
-      - name: Run parser test
+      - name: Run OpenCode tests
         run: ctest --test-dir build -C Release --output-on-failure
