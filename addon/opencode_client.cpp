@@ -29,6 +29,7 @@ struct HttpResult {
     std::string body;
     std::string error;
     bool offline = false;
+    int status = 0;
 };
 
 HttpResult Request(httplib::Client& client, const std::string& method, const std::string& path,
@@ -51,8 +52,10 @@ HttpResult Request(httplib::Client& client, const std::string& method, const std
     const auto response = client.send(request);
     if (tooLarge) return {{}, "OpenCode response exceeded its size limit"};
     if (!response) return {{}, "OpenCode request failed", true};
+    if (response->status == 401)
+        return {{}, "OpenCode rejected the saved password; run start-agent.ps1 again", false, 401};
     if (response->status < 200 || response->status >= 300)
-        return {{}, "OpenCode returned HTTP " + std::to_string(response->status)};
+        return {{}, "OpenCode returned HTTP " + std::to_string(response->status), false, response->status};
     return result;
 }
 
@@ -72,7 +75,7 @@ ClientResult Prompt(const Connection& config, std::string_view text, std::string
     Configure(client, config, 3);
     if (!client.is_valid()) return {{}, "Invalid OpenCode loopback URL", true};
     if (sessionId.empty()) {
-        const auto created = Request(client, "POST", "/session", R"({"agent":"gw2"})");
+        const auto created = Request(client, "POST", "/session", R"({"title":"GW2 chat"})");
         if (!created.error.empty()) return {{}, created.error, created.offline};
         if (!ParseSessionId(created.body, sessionId)) return {{}, "OpenCode returned an invalid session", true};
     }
@@ -92,6 +95,10 @@ ClientResult Prompt(const Connection& config, std::string_view text, std::string
         return {{}, cancel.load() ? "Canceled" : "OpenCode did not finish the reply before the time limit"};
     }
     const auto response = pending.get();
+    if (response.status == 404) {
+        sessionId.clear();
+        return {{}, "The OpenCode session no longer exists; send again to start a new one"};
+    }
     if (!response.error.empty()) return {{}, response.error, response.offline};
     ClientResult message;
     if (!ParseAssistantReply(response.body, message)) return {{}, "OpenCode returned an invalid reply", true};

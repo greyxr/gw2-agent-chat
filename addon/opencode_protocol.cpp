@@ -9,6 +9,8 @@
 namespace gw2chat {
 namespace {
 
+using nlohmann::literals::operator""_json_pointer;
+
 bool SafeName(std::string_view value) {
     static const std::regex pattern(R"([A-Za-z0-9_.-]{1,64})");
     return std::regex_match(value.begin(), value.end(), pattern);
@@ -66,11 +68,18 @@ bool ParseAssistantReply(std::string_view input, ClientResult& out) {
     try {
         const auto data = nlohmann::json::parse(input);
         ClientResult message;
-        if (data.at("info").contains("error")) message.error = "The agent reported an error";
+        const auto& info = data.at("info");
+        if (const auto error = info.find("error"); error != info.end()) {
+            message.error = "The agent reported an error";
+            const auto detail = error->is_object() ? error->value("/data/message"_json_pointer, std::string()) : std::string();
+            if (!detail.empty()) message.error += ": " + detail.substr(0, 300);
+        }
         for (const auto& part : data.at("parts")) {
             if (part.at("type").get<std::string>() == "text") {
                 const auto piece = part.at("text").get<std::string>();
-                if (message.text.size() + piece.size() > (1 << 20)) return false;
+                if (piece.empty()) continue;
+                if (message.text.size() + piece.size() + 2 > (1 << 20)) return false;
+                if (!message.text.empty()) message.text += "\n\n";
                 message.text += piece;
             }
         }

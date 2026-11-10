@@ -38,6 +38,7 @@ struct AppState {
     std::string error;
     std::string sessionId;
     bool busy = false;
+    bool scrollToEnd = false;
 } state;
 
 AddonAPI* api = nullptr;
@@ -64,6 +65,7 @@ bool ReadConnection(gw2chat::Connection& out) {
 void AddMessageLocked(std::string role, std::string text) {
     state.bytes += role.size() + text.size();
     state.messages.push_back({std::move(role), std::move(text)});
+    state.scrollToEnd = true;
     while (state.messages.size() > messageLimit || state.bytes > historyLimit) {
         state.bytes -= state.messages.front().role.size() + state.messages.front().text.size();
         state.messages.erase(state.messages.begin());
@@ -108,9 +110,15 @@ void RunRequest(gw2chat::Connection config, std::string text) {
 void StartRequest() {
     std::string text(prompt.data());
     if (text.empty() || text.size() > promptLimit) return;
+    gw2chat::Connection latest;
+    const bool loaded = ReadConnection(latest);
     {
         std::lock_guard<std::mutex> lock(state.mutex);
         if (state.busy) return;
+        if (loaded && !(latest == connection)) {
+            connection = std::move(latest);
+            state.sessionId.clear();
+        }
         if (!connection) {
             state.status = "OpenCode offline";
             state.error = "Start OpenCode, then reload the connection";
@@ -160,6 +168,8 @@ void RenderMain() {
             ImGui::PopTextWrapPos();
             ImGui::Spacing();
         }
+        if (state.scrollToEnd) ImGui::SetScrollHereY(1.0f);
+        state.scrollToEnd = false;
         ImGui::EndChild();
         ImGui::Text("Status: %s", state.status.c_str());
         if (!state.error.empty()) ImGui::TextUnformatted(state.error.data(), state.error.data() + state.error.size());
@@ -176,11 +186,12 @@ void RenderMain() {
     }
     if (busy) {
         if (ImGui::Button("Cancel")) { cancel.store(true); SetStatus("Canceling"); }
-    } else if (ImGui::Button("Clear display history")) {
+    } else if (ImGui::Button("New chat")) {
         std::lock_guard<std::mutex> lock(state.mutex);
         state.messages.clear();
         state.bytes = 0;
         state.error.clear();
+        state.sessionId.clear();
     }
     ImGui::End();
 }

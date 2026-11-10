@@ -13,6 +13,9 @@ struct Connection {
     std::string username;
     std::string password;
     explicit operator bool() const { return port != 0; }
+    bool operator==(const Connection& other) const {
+        return host == other.host && port == other.port && username == other.username && password == other.password;
+    }
 };
 
 struct ClientResult {

@@ -22,9 +22,16 @@ int main() {
 
     gw2chat::ClientResult message;
     assert(gw2chat::ParseAssistantReply(R"({"info":{"role":"assistant"},"parts":[{"type":"text","text":"hello "},{"type":"text","text":"world"}]})", message));
-    assert(message.text == "hello world");
-    assert(gw2chat::ParseAssistantReply(R"({"info":{"error":{"message":"failed"}},"parts":[]})", message));
-    assert(!message.error.empty());
+    assert(message.text == "hello \n\nworld");
+    assert(gw2chat::ParseAssistantReply(R"({"info":{},"parts":[{"type":"tool","tool":"x"},{"type":"text","text":""},{"type":"text","text":"only"}]})", message));
+    assert(message.text == "only" && message.error.empty());
+    assert(gw2chat::ParseAssistantReply(R"({"info":{"error":{"name":"APIError","data":{"message":"quota exceeded"}}},"parts":[]})", message));
+    assert(message.error == "The agent reported an error: quota exceeded");
+    assert(gw2chat::ParseAssistantReply(R"({"info":{"error":"failed"},"parts":[]})", message));
+    assert(message.error == "The agent reported an error");
+    gw2chat::Connection same;
+    assert(gw2chat::ParseConnection(R"({"url":"http://[::1]:4096","username":"opencode","password":"0123456789abcdef"})", same) && same == connection);
+    assert(gw2chat::ParseConnection(R"({"url":"http://[::1]:4096","username":"opencode","password":"0123456789abcdeX"})", same) && !(same == connection));
     const auto oversized = std::string("{\"info\":{},\"parts\":[{\"type\":\"text\",\"text\":\"") +
         std::string((1 << 20) + 1, 'x') + "\"}]}";
     assert(!gw2chat::ParseAssistantReply(oversized, message));
