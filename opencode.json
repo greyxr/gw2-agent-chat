@@ -19,7 +19,7 @@
         "gw2_get_market_prices": "allow",
         "gw2_get_recipes": "allow",
         "gw2_get_record": "allow",
-        "gw2_get_reference": "allow",
+        "gw2_get_wiki_page": "allow",
         "gw2_list_api_endpoints": "allow",
         "gw2_list_characters": "allow",
         "gw2_list_records": "allow",
