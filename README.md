@@ -61,7 +61,7 @@ Keep OpenCode and Guild Wars 2 on the same Windows host. WSL loopback forwarding
 
 ## Tests and limits
 
-Windows CI builds the x64 add-on with MSVC, checks the OpenCode protocol, exercises the authenticated session/message/cancel HTTP flow against a local fixture, and verifies standalone OpenCode startup, authenticated health, and the private connection-file ACL without making a model request. The protocol and HTTP tests also build and run on Linux. The add-on displays complete assistant messages as plain text when OpenCode finishes; it does not display token-by-token output or render Markdown, so the agent prompt asks for plain text. The historical Fractal/account-value question remains unsupported without timestamped personal history, and the add-on must not infer old loot from current account values.
+Windows CI builds the x64 add-on with MSVC, checks the OpenCode protocol, exercises the authenticated session/message/cancel HTTP flow against a local fixture, and verifies standalone OpenCode startup, authenticated health, and the private connection-file ACL without making a model request. The protocol and HTTP tests also build and run on Linux. The add-on displays complete assistant messages as plain text when OpenCode finishes; it does not display token-by-token output or render Markdown, so the agent prompt asks for plain text.
 
 ## References
 

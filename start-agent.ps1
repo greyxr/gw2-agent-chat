@@ -14,8 +14,8 @@ $root = Join-Path $appData "gw2-agent-chat"
 $connectionPath = Join-Path $root "connection.json"
 $agentPath = Join-Path $PSScriptRoot "node_modules\opencode-ai\bin\opencode.exe"
 if (-not (Test-Path -LiteralPath $agentPath -PathType Leaf)) { throw "Install the pinned OpenCode package with npm ci first" }
-$version = (& $agentPath --version 2>$null | Select-Object -First 1).Trim()
-if ($LASTEXITCODE -ne 0 -or $version -ne "1.19.5") { throw "The pinned OpenCode CLI 1.19.5 is required" }
+$version = "$(@(& $agentPath --version 2>$null)[0])".Trim()
+if ($version -ne "1.19.5") { throw "The pinned OpenCode CLI 1.19.5 is required, found '$version'" }
 
 $identity = [Security.Principal.WindowsIdentity]::GetCurrent().User
 $inherit = [Security.AccessControl.InheritanceFlags]::ContainerInherit -bor [Security.AccessControl.InheritanceFlags]::ObjectInherit

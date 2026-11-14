@@ -35,7 +35,7 @@ struct AppState {
     std::mutex mutex;
     std::vector<Message> messages;
     std::size_t bytes = 0;
-    std::string status = "OpenCode offline";
+    std::string status = "Ready";
     std::string error;
     std::string sessionId;
     bool busy = false;
@@ -81,12 +81,6 @@ void Finish(std::string status, std::string error = {}, std::string answer = {},
     state.status = std::move(status);
     state.error = std::move(error);
     state.busy = false;
-}
-
-void SetStatus(std::string status, std::string error = {}) {
-    std::lock_guard<std::mutex> lock(state.mutex);
-    state.status = std::move(status);
-    state.error = std::move(error);
 }
 
 void RunRequest(gw2chat::Connection config, std::string text) {
@@ -142,19 +136,6 @@ void StartRequest() {
     refocus = true;
     try { worker = std::thread(RunRequest, connection, std::move(text)); }
     catch (const std::system_error&) { Finish("Error", "Could not start the OpenCode worker"); }
-}
-
-void ReloadConnection() {
-    {
-        std::lock_guard<std::mutex> lock(state.mutex);
-        if (state.busy) return;
-        state.sessionId.clear();
-    }
-    gw2chat::Connection next;
-    const bool loaded = ReadConnection(next);
-    connection = loaded ? std::move(next) : gw2chat::Connection{};
-    SetStatus(loaded ? "Configured (not checked)" : "OpenCode offline",
-              loaded ? "" : "Connection file is missing or invalid");
 }
 
 void Toggle(const char*, bool release) {
@@ -216,24 +197,13 @@ void RenderMain() {
     ImGui::End();
 }
 
-void RenderOptions() {
-    if (!api) return;
-    ImGui::SetCurrentContext(static_cast<ImGuiContext*>(api->ImguiContext));
-    if (ImGui::Button("Reload OpenCode connection")) ReloadConnection();
-    ImGui::SameLine();
-    std::lock_guard<std::mutex> lock(state.mutex);
-    ImGui::TextUnformatted(state.status.c_str());
-}
-
 void AddonLoad(AddonAPI* addonApi) {
     api = addonApi;
     if (!api) return;
     ImGui::SetCurrentContext(static_cast<ImGuiContext*>(api->ImguiContext));
     ImGui::SetAllocatorFunctions(reinterpret_cast<void* (*)(size_t, void*)>(api->ImguiMalloc),
                                  reinterpret_cast<void (*)(void*, void*)>(api->ImguiFree));
-    ReloadConnection();
     api->Renderer.Register(ERenderType_Render, RenderMain);
-    api->Renderer.Register(ERenderType_OptionsRender, RenderOptions);
     api->InputBinds.RegisterWithString(toggleId, Toggle, "ALT+SHIFT+T");
     api->UI.RegisterCloseOnEscape(windowName, &visible);
 }
@@ -243,7 +213,6 @@ void AddonUnload() {
         api->UI.DeregisterCloseOnEscape(windowName);
         api->InputBinds.Deregister(toggleId);
         api->Renderer.Deregister(RenderMain);
-        api->Renderer.Deregister(RenderOptions);
     }
     api = nullptr;
     cancel.store(true);

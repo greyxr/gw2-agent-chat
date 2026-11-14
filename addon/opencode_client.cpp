@@ -60,12 +60,10 @@ HttpResult Request(httplib::Client& client, const std::string& method, const std
     return result;
 }
 
-HttpResult Abort(const Connection& config, const std::string& sessionId) {
+void Abort(const Connection& config, const std::string& sessionId) {
     httplib::Client client(Url(config));
     Configure(client, config, 3);
-    auto pending = std::async(std::launch::async, [&] { return Request(client, "POST", "/session/" + sessionId + "/abort", {}); });
-    if (pending.wait_for(std::chrono::seconds(3)) != std::future_status::ready) client.stop();
-    return pending.get();
+    Request(client, "POST", "/session/" + sessionId + "/abort", {});
 }
 
 }
