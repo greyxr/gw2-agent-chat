@@ -43,12 +43,14 @@ $bytes = New-Object byte[] 32
 $rng = [Security.Cryptography.RandomNumberGenerator]::Create()
 $previousPassword = $env:OPENCODE_SERVER_PASSWORD
 $previousUsername = $env:OPENCODE_SERVER_USERNAME
+$previousClaudePrompt = $env:OPENCODE_DISABLE_CLAUDE_CODE_PROMPT
 $process = $null
 try {
     $rng.GetBytes($bytes)
     $password = [Convert]::ToBase64String($bytes).TrimEnd('=').Replace('+', '-').Replace('/', '_')
     $env:OPENCODE_SERVER_PASSWORD = $password
     $env:OPENCODE_SERVER_USERNAME = $Username
+    $env:OPENCODE_DISABLE_CLAUDE_CODE_PROMPT = "1"
 
     if (-not $PrepareOnly) {
         $process = Start-Process -FilePath $agentPath -ArgumentList @("serve", "--hostname", "127.0.0.1", "--port", "$Port") -WorkingDirectory $PSScriptRoot -PassThru -NoNewWindow
@@ -90,5 +92,6 @@ try {
     Remove-Variable password, connection -ErrorAction SilentlyContinue
     if ($null -eq $previousPassword) { Remove-Item Env:OPENCODE_SERVER_PASSWORD -ErrorAction SilentlyContinue } else { $env:OPENCODE_SERVER_PASSWORD = $previousPassword }
     if ($null -eq $previousUsername) { Remove-Item Env:OPENCODE_SERVER_USERNAME -ErrorAction SilentlyContinue } else { $env:OPENCODE_SERVER_USERNAME = $previousUsername }
-    Remove-Variable previousPassword, previousUsername -ErrorAction SilentlyContinue
+    if ($null -eq $previousClaudePrompt) { Remove-Item Env:OPENCODE_DISABLE_CLAUDE_CODE_PROMPT -ErrorAction SilentlyContinue } else { $env:OPENCODE_DISABLE_CLAUDE_CODE_PROMPT = $previousClaudePrompt }
+    Remove-Variable previousPassword, previousUsername, previousClaudePrompt -ErrorAction SilentlyContinue
 }

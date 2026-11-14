@@ -4,6 +4,7 @@
 #undef NDEBUG
 #endif
 #include <cassert>
+#include <string>
 
 int main() {
     gw2chat::Connection connection;
@@ -27,8 +28,14 @@ int main() {
     assert(message.text == "only" && message.error.empty());
     assert(gw2chat::ParseAssistantReply(R"({"info":{"error":{"name":"APIError","data":{"message":"quota exceeded"}}},"parts":[]})", message));
     assert(message.error == "The agent reported an error: quota exceeded");
-    assert(gw2chat::ParseAssistantReply(R"({"info":{"error":"failed"},"parts":[]})", message));
-    assert(message.error == "The agent reported an error");
+    for (const char* odd : {R"("failed")", R"({"data":[1]})", R"({"data":{"message":5}})", R"({"data":"x"})"}) {
+        assert(gw2chat::ParseAssistantReply(std::string(R"({"info":{"error":)") + odd + R"(},"parts":[{"type":"text","text":"partial"}]})", message));
+        assert(message.error == "The agent reported an error" && message.text == "partial");
+    }
+    assert(gw2chat::ParseAssistantReply(R"({"info":{"error":null},"parts":[]})", message) && message.error.empty());
+    const auto longError = R"({"info":{"error":{"data":{"message":")" + std::string(299, 'x') + u8"\u732B" + R"("}}},"parts":[]})";
+    assert(gw2chat::ParseAssistantReply(longError, message));
+    assert(message.error == "The agent reported an error: " + std::string(299, 'x'));
     gw2chat::Connection same;
     assert(gw2chat::ParseConnection(R"({"url":"http://[::1]:4096","username":"opencode","password":"0123456789abcdef"})", same) && same == connection);
     assert(gw2chat::ParseConnection(R"({"url":"http://[::1]:4096","username":"opencode","password":"0123456789abcdeX"})", same) && !(same == connection));

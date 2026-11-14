@@ -48,9 +48,9 @@ Then start OpenCode, for either standalone chat or account access:
 $agent = .\start-agent.ps1
 ```
 
-The script starts OpenCode 1.19.5 on `127.0.0.1:4096`, generates a fresh local password, and writes its username, password, and URL atomically to the protected connection file. It passes the password through the process environment, not command-line arguments, and clears its temporary environment variables when it returns. Use `-Port` or `-Username` to change those settings. `-PrepareOnly` creates and ACL-protects the connection file without starting OpenCode for CI verification.
+The script starts OpenCode 1.19.5 on `127.0.0.1:4096`, generates a fresh local password, and writes its username, password, and URL atomically to the protected connection file. It passes the password through the process environment, not command-line arguments, and clears its temporary environment variables when it returns. It also sets `OPENCODE_DISABLE_CLAUDE_CODE_PROMPT` so a personal `~/.claude/CLAUDE.md` is not added to every request; a global OpenCode `AGENTS.md` or `instructions` setting still is, and costs tokens on each turn. Use `-Port` or `-Username` to change those settings. `-PrepareOnly` creates and ACL-protects the connection file without starting OpenCode for CI verification.
 
-Launch Guild Wars 2 with Nexus and press `Alt+Shift+T`. The add-on rereads the connection file on every send, so OpenCode can be started or restarted while the game is running; a changed connection starts a fresh agent session. Ctrl+Enter sends a prompt while the input box is focused. Cancel stops the current OpenCode request; New chat clears the display and starts a new session. Stop the server and clear the GW2 key when finished:
+Launch Guild Wars 2 with Nexus and press `Alt+Shift+T`. The add-on rereads the connection file on every send, so OpenCode can be started or restarted while the game is running; a changed connection starts a fresh agent session, and a session OpenCode no longer has is replaced automatically with a note in the panel. Ctrl+Enter sends a prompt while the input box is focused. Cancel stops the current OpenCode request; New chat clears the display and starts a new session. Stop the server and clear the GW2 key when finished:
 
 ```powershell
 Stop-Process -Id $agent.ProcessId

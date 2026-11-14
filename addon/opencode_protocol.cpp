@@ -2,6 +2,7 @@
 
 #include <nlohmann/json.hpp>
 
+#include <algorithm>
 #include <charconv>
 #include <regex>
 #include <utility>
@@ -9,7 +10,20 @@
 namespace gw2chat {
 namespace {
 
-using nlohmann::literals::operator""_json_pointer;
+constexpr std::size_t replyLimit = 64 << 10;
+
+std::string ErrorDetail(const nlohmann::json& error) {
+    if (!error.is_object()) return {};
+    const auto data = error.find("data");
+    if (data == error.end() || !data->is_object()) return {};
+    const auto message = data->find("message");
+    if (message == data->end() || !message->is_string()) return {};
+    auto text = message->get<std::string>();
+    std::size_t size = std::min<std::size_t>(text.size(), 300);
+    while (size > 0 && size < text.size() && (static_cast<unsigned char>(text[size]) & 0xC0) == 0x80) --size;
+    text.resize(size);
+    return text;
+}
 
 bool SafeName(std::string_view value) {
     static const std::regex pattern(R"([A-Za-z0-9_.-]{1,64})");
@@ -69,16 +83,16 @@ bool ParseAssistantReply(std::string_view input, ClientResult& out) {
         const auto data = nlohmann::json::parse(input);
         ClientResult message;
         const auto& info = data.at("info");
-        if (const auto error = info.find("error"); error != info.end()) {
+        if (const auto error = info.find("error"); error != info.end() && !error->is_null()) {
             message.error = "The agent reported an error";
-            const auto detail = error->is_object() ? error->value("/data/message"_json_pointer, std::string()) : std::string();
-            if (!detail.empty()) message.error += ": " + detail.substr(0, 300);
+            const auto detail = ErrorDetail(*error);
+            if (!detail.empty()) message.error += ": " + detail;
         }
         for (const auto& part : data.at("parts")) {
             if (part.at("type").get<std::string>() == "text") {
                 const auto piece = part.at("text").get<std::string>();
                 if (piece.empty()) continue;
-                if (message.text.size() + piece.size() + 2 > (1 << 20)) return false;
+                if (message.text.size() + piece.size() + 2 > replyLimit) return false;
                 if (!message.text.empty()) message.text += "\n\n";
                 message.text += piece;
             }
