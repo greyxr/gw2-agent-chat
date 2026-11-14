@@ -23,7 +23,14 @@ int main(int argc, char** argv) {
     auto second = gw2chat::Prompt(connection, u8"a\"b\u732B", session, cancel);
     assert(second.error.empty() && second.text == "reply two" && session == "ses_fixture");
     auto failed = gw2chat::Prompt(connection, "error", session, cancel);
-    assert(failed.error == "OpenCode returned HTTP 400");
+    assert(failed.error == "OpenCode returned HTTP 400" && session == "ses_fixture");
+    session = "ses_deleted";
+    auto recreated = gw2chat::Prompt(connection, "first", session, cancel);
+    assert(recreated.error.empty() && recreated.text == "reply one" && session == "ses_fixture");
+    auto partial = gw2chat::Prompt(connection, "partial", session, cancel);
+    assert(partial.text == "half" && partial.error == "The agent reported an error: cut off");
+    auto denied = gw2chat::Prompt({"127.0.0.1", static_cast<std::uint16_t>(port), "opencode", "wrong-password-0123456789"}, "first", session, cancel);
+    assert(denied.error.find("password") != std::string::npos && !denied.offline && session == "ses_fixture");
     auto large = gw2chat::Prompt(connection, "large", session, cancel);
     assert(large.error == "OpenCode response exceeded its size limit");
 

@@ -29,6 +29,7 @@ struct HttpResult {
     std::string body;
     std::string error;
     bool offline = false;
+    int status = 0;
 };
 
 HttpResult Request(httplib::Client& client, const std::string& method, const std::string& path,
@@ -51,17 +52,18 @@ HttpResult Request(httplib::Client& client, const std::string& method, const std
     const auto response = client.send(request);
     if (tooLarge) return {{}, "OpenCode response exceeded its size limit"};
     if (!response) return {{}, "OpenCode request failed", true};
+    if (response->status == 401)
+        return {{}, "OpenCode rejected the saved password; stop OpenCode and run start-agent.ps1 again", false, 401};
     if (response->status < 200 || response->status >= 300)
-        return {{}, "OpenCode returned HTTP " + std::to_string(response->status)};
+        return {{}, "OpenCode returned HTTP " + std::to_string(response->status), false, response->status};
+    result.status = response->status;
     return result;
 }
 
-HttpResult Abort(const Connection& config, const std::string& sessionId) {
+void Abort(const Connection& config, const std::string& sessionId) {
     httplib::Client client(Url(config));
     Configure(client, config, 3);
-    auto pending = std::async(std::launch::async, [&] { return Request(client, "POST", "/session/" + sessionId + "/abort", {}); });
-    if (pending.wait_for(std::chrono::seconds(3)) != std::future_status::ready) client.stop();
-    return pending.get();
+    Request(client, "POST", "/session/" + sessionId + "/abort", {});
 }
 
 }
@@ -71,13 +73,14 @@ ClientResult Prompt(const Connection& config, std::string_view text, std::string
     httplib::Client client(Url(config));
     Configure(client, config, 3);
     if (!client.is_valid()) return {{}, "Invalid OpenCode loopback URL", true};
-    if (sessionId.empty()) {
-        const auto created = Request(client, "POST", "/session", R"({"agent":"gw2"})");
+    const bool reused = !sessionId.empty();
+    if (!reused) {
+        const auto created = Request(client, "POST", "/session", R"({"title":"GW2 chat"})");
         if (!created.error.empty()) return {{}, created.error, created.offline};
         if (!ParseSessionId(created.body, sessionId)) return {{}, "OpenCode returned an invalid session", true};
     }
     if (cancel.load()) return {};
-    client.set_read_timeout(180);
+    client.set_read_timeout(190);
 
     const auto path = "/session/" + sessionId + "/message";
     const auto payload = PromptBody(text);
@@ -92,11 +95,14 @@ ClientResult Prompt(const Connection& config, std::string_view text, std::string
         return {{}, cancel.load() ? "Canceled" : "OpenCode did not finish the reply before the time limit"};
     }
     const auto response = pending.get();
+    if (response.status == 404 && reused) {
+        sessionId.clear();
+        return Prompt(config, text, sessionId, cancel);
+    }
     if (!response.error.empty()) return {{}, response.error, response.offline};
     ClientResult message;
     if (!ParseAssistantReply(response.body, message)) return {{}, "OpenCode returned an invalid reply", true};
-    if (!message.error.empty()) return message;
-    if (message.text.empty()) return {{}, "The agent returned an empty reply"};
+    if (message.error.empty() && message.text.empty()) message.error = "The agent returned an empty reply";
     return message;
 }
 

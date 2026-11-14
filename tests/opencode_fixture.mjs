@@ -14,8 +14,14 @@ let child;
 
 const server = createServer(async (request, response) => {
   response.on('error', () => {});
-  if (request.headers.authorization !== auth) return response.writeHead(401).end();
+  if (request.headers.authorization !== auth) {
+    request.resume();
+    return response.writeHead(401).end();
+  }
   if (request.method === 'POST' && request.url === '/session') {
+    let body = '';
+    for await (const part of request) body += part;
+    assert.equal(JSON.parse(body).title, 'GW2 chat');
     sessions += 1;
     return response.writeHead(200, { 'content-type': 'application/json' }).end('{"id":"ses_fixture"}');
   }
@@ -33,6 +39,12 @@ const server = createServer(async (request, response) => {
       return;
     }
     if (text === 'error') return response.writeHead(400).end('{"error":"failed"}');
+    if (text === 'partial') {
+      return response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify({
+        info: { role: 'assistant', error: { name: 'MessageOutputLengthError', data: { message: 'cut off' } } },
+        parts: [{ type: 'text', text: 'half' }],
+      }));
+    }
     if (text === 'large') {
       const oversized = { info: { role: 'assistant' }, parts: [{ type: 'text', text: 'x'.repeat((2 << 20) + 1) }] };
       return response.writeHead(200, { 'content-type': 'application/json' }).end(JSON.stringify(oversized));
@@ -43,6 +55,10 @@ const server = createServer(async (request, response) => {
       info: { id: `msg_${prompts.length}`, role: 'assistant' },
       parts: [{ type: 'text', text: reply }],
     }));
+  }
+  if (request.method === 'POST' && request.url === '/session/ses_deleted/message') {
+    request.resume();
+    return response.writeHead(404).end();
   }
   if (request.method === 'POST' && request.url === '/session/ses_fixture/abort') {
     aborted = true;
@@ -62,8 +78,8 @@ server.listen(0, '127.0.0.1', () => {
     try {
       assert.equal(signal, null);
       assert.equal(code, 0);
-      assert.equal(sessions, 1);
-      assert.deepEqual(prompts, ['first', quotedPrompt, 'error', 'large', 'cancel']);
+      assert.equal(sessions, 2);
+      assert.deepEqual(prompts, ['first', quotedPrompt, 'error', 'first', 'partial', 'large', 'cancel']);
       assert.equal(aborted, true);
     } catch (error) {
       console.error(error.message);
